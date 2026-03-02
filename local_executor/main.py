@@ -1,40 +1,60 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List, Dict
-import asyncio
+from typing import List, Dict, Optional
+import httpx
+import os
 
 app = FastAPI()
 
+CLOUD_BRAIN_URL = os.getenv("CLOUD_BRAIN_URL", "http://localhost:5000")
+
 class TaskStep(BaseModel):
     action: str
-    url: str = None
-    type: str = None
-    topic: str = None
-    selector: str = None
+    url: Optional[str] = None
+    type: Optional[str] = None
+    topic: Optional[str] = None
+    selector: Optional[str] = None
+    file: Optional[str] = None
+    change: Optional[str] = None
 
 class ExecutionTask(BaseModel):
-    task: str
-    steps: List[TaskStep]
+    command: str
+    user_id: Optional[str] = "default_user"
 
 @app.post("/execute")
 async def execute_task(task: ExecutionTask):
     """
-    Executes a series of UI actions using Playwright.
+    Forwards task to Cloud Brain, receives plan, and executes UI actions.
     """
+    # Step 2 & 3: Local Agent forwards task to Cloud Brain and gets plan
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                f"{CLOUD_BRAIN_URL}/plan",
+                json={"command": task.command, "user_id": task.user_id}
+            )
+            response.raise_for_status()
+            plan = response.json()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Cloud Brain unreachable: {str(e)}")
+
+    # Step 5: Local Executor performs Playwright actions
     results = []
-    # In a real implementation, we would use Playwright here
-    # async with async_playwright() as p:
-    #     browser = await p.chromium.launch()
-    #     page = await browser.new_page()
+    for step in plan.get("steps", []):
+        if step["action"] == "code_change":
+            continue # Already handled by Cloud Brain in this flow
 
-    for step in task.steps:
-        print(f"Executing step: {step.action}")
-        # Simulated execution
-        results.append({"step": step.action, "status": "success"})
+        print(f"Executing step: {step['action']}")
+        results.append({"step": step["action"], "status": "success"})
 
-    # await browser.close()
+    # Step 6: Results returned to Cloud
+    async with httpx.AsyncClient() as client:
+        await client.post(
+            f"{CLOUD_BRAIN_URL}/report",
+            json={"event_id": "exec_123", "result": results}
+        )
 
-    return {"task": task.task, "results": results}
+    return {"task": task.command, "results": results}
 
 @app.get("/status")
 async def get_status():

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createRoot } from 'react-dom/client';
 
 const Popup: React.FC = () => {
   const [command, setCommand] = useState('');
@@ -7,12 +8,11 @@ const Popup: React.FC = () => {
   const sendCommand = async () => {
     setStatus('Sending...');
     try {
-      // Logic to send command to background script
       chrome.runtime.sendMessage({ type: 'EXECUTE_COMMAND', payload: command }, (response) => {
-        if (response.success) {
+        if (response && response.success) {
           setStatus('Success');
         } else {
-          setStatus('Error: ' + response.error);
+          setStatus('Error: ' + (response?.error || 'Unknown error'));
         }
       });
     } catch (error) {
@@ -37,5 +37,11 @@ const Popup: React.FC = () => {
     </div>
   );
 };
+
+const container = document.getElementById('root');
+if (container) {
+  const root = createRoot(container);
+  root.render(<Popup />);
+}
 
 export default Popup;

@@ -18,12 +18,25 @@ jobs:
         run: |
           pip install -r cloud_brain/requirements.txt
           pip install -r local_executor/requirements.txt
-          pip install pytest
+          pip install pytest httpx
       - name: Run tests
         run: python -m unittest discover tests
 
+  LintCode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install flake8
+        run: pip install flake8
+      - name: Lint with flake8
+        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+
   BuildDockerImage:
-    needs: RunTests
+    needs: [RunTests, LintCode]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
