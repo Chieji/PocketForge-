@@ -1,0 +1,39 @@
+name: Deploy Facebook AI Operator
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  RunTests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install dependencies
+        run: |
+          pip install -r cloud_brain/requirements.txt
+          pip install -r local_executor/requirements.txt
+          pip install pytest
+      - name: Run tests
+        run: python -m unittest discover tests
+
+  BuildDockerImage:
+    needs: RunTests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build Cloud Brain Image
+        run: docker build -t facebook-ai-agent/cloud-brain cloud_brain/
+
+  DeployCloudBrain:
+    needs: BuildDockerImage
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Deploy to Cloud
+        run: echo "Deploying to AWS/GCP..."
